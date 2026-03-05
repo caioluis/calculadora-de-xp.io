@@ -204,45 +204,6 @@
         }
         .btn-levelup:hover { opacity: 1; transform: scale(1.1); }
 
-        /* Área de Modificadores (Redução/Aumento) */
-        .modifiers-row {
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            gap: 15px;
-            font-size: 0.75rem;
-            color: #888;
-            margin-top: -5px;
-            background: rgba(0,0,0,0.2);
-            padding: 5px 10px;
-            border-radius: 4px;
-        }
-
-        .mod-group {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .input-modifier {
-            background: rgba(0,0,0,0.5);
-            border: 1px solid #333;
-            width: 45px;
-            padding: 2px 5px;
-            border-radius: 3px;
-            text-align: center;
-            font-family: 'Inter', sans-serif;
-            font-weight: bold;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-        
-        .input-red { color: var(--success); border-color: rgba(76, 175, 80, 0.3); }
-        .input-red:focus { border-color: var(--success); }
-        
-        .input-inc { color: var(--danger); border-color: rgba(255, 82, 82, 0.3); }
-        .input-inc:focus { border-color: var(--danger); }
-
         /* Progresso */
         .progress-section {
             display: flex;
@@ -361,12 +322,91 @@
 
         .flash-effect { animation: flashGold 0.8s ease-out; }
 
+        /* Buffed/Nerfed card borders */
+        .apt-card.buffed { border-left: 3px solid var(--success); background: rgba(76, 175, 80, 0.03); }
+        .apt-card.nerfed { border-left: 3px solid var(--danger); background: rgba(255, 82, 82, 0.03); }
+
+        /* Modifier tags */
+        .apt-mods-area {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            font-size: 0.7rem;
+            min-height: 4px;
+        }
+        .mod-tag {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .mod-tag.positive { color: var(--success); border: 1px solid rgba(76, 175, 80, 0.3); background: rgba(76, 175, 80, 0.06); }
+        .mod-tag.negative { color: var(--danger); border: 1px solid rgba(255, 82, 82, 0.3); background: rgba(255, 82, 82, 0.06); }
+
+        /* Modifiers Panel */
+        .traits-panel {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px 25px;
+            margin-bottom: 30px;
+        }
+        .traits-panel-title {
+            font-family: 'Cinzel', serif;
+            color: var(--gold);
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+        .mod-section-label {
+            width: 100%;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #555;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .mod-section-label + .mod-section-label { margin-top: 12px; }
+        .modifiers-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: flex-start;
+        }
+        .mod-toggle {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid #2a2a2a;
+            border-radius: 6px;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+            font-family: 'Inter', sans-serif;
+            color: var(--text-muted);
+            user-select: none;
+            min-width: 0;
+        }
+        .mod-toggle:hover { border-color: #444; color: var(--text-main); }
+        .mod-toggle .t-name { font-weight: 600; font-size: 0.85rem; color: #bbb; transition: color 0.2s; }
+        .mod-toggle .t-effect { font-size: 0.7rem; color: #555; transition: color 0.2s; }
+
+        .mod-toggle.active.type-pos { border-color: var(--success); background: rgba(76, 175, 80, 0.1); }
+        .mod-toggle.active.type-pos .t-name { color: var(--success); }
+        .mod-toggle.active.type-pos .t-effect { color: rgba(76, 175, 80, 0.65); }
+
+        .mod-toggle.active.type-neg { border-color: var(--danger); background: rgba(255, 82, 82, 0.1); }
+        .mod-toggle.active.type-neg .t-name { color: var(--danger); }
+        .mod-toggle.active.type-neg .t-effect { color: rgba(255, 82, 82, 0.65); }
+
         @media (max-width: 768px) {
             .columns-wrapper { grid-template-columns: 1fr; }
             .sticky-header { flex-direction: column; gap: 15px; text-align: center; }
             .global-stats { border-left: none; text-align: center; padding: 0; }
             .header-left { flex-direction: column; }
-            .modifiers-row { justify-content: center; }
         }
     </style>
 </head>
@@ -393,6 +433,11 @@
                 <span>Calculadora de XP Total</span>
                 <strong id="globalTotal">0</strong>
             </div>
+        </div>
+
+        <div class="traits-panel">
+            <div class="traits-panel-title">Modificadores Ativos</div>
+            <div class="modifiers-grid" id="modifiers-grid"></div>
         </div>
 
         <div class="columns-wrapper">
@@ -465,6 +510,21 @@
         }
 
         // === DADOS DO SISTEMA ===
+        const MODIFIERS_DB = [
+            // Vantagens
+            { id: "mod-versatilidade-inata",      name: "Versatilidade Inata",               effect: "TODAS −20%",             type: "pos", rules: [{ ty:'GLOBAL', tg:'ALL',           m: 0.80 }] },
+            { id: "mod-prodigio-absoluto",         name: "Prodígio Absoluto",                 effect: "TODAS −15%",             type: "pos", rules: [{ ty:'GLOBAL', tg:'ALL',           m: 0.85 }] },
+            { id: "mod-prodigio-forca",            name: "Prodígio Específico (Força)",       effect: "FOR −35%",             type: "pos", rules: [{ ty:'TYPE',   tg:'FOR',           m: 0.65 }] },
+            { id: "mod-prodigio-destreza",         name: "Prodígio Específico (Destreza)",    effect: "DES −35%",             type: "pos", rules: [{ ty:'TYPE',   tg:'DES',           m: 0.65 }] },
+            { id: "mod-prodigio-inteligencia",     name: "Prodígio Específico (Inteligência)",effect: "INT −35%",             type: "pos", rules: [{ ty:'TYPE',   tg:'INT',           m: 0.65 }] },
+            { id: "mod-genio-barreiras",           name: "Gênio das Barreiras",               effect: "Barreiras −20%, FOR/DES +20%", type: "pos", rules: [{ ty:'ID', tg:'apt-barreiras', m: 0.80 }, { ty:'TYPE', tg:'FOR', m: 1.20 }, { ty:'TYPE', tg:'DES', m: 1.20 }] },
+            { id: "mod-dominio-parcial",           name: "Domínio Parcial de Técnica",        effect: "Feitiços/Barreiras −5%", type: "pos", rules: [{ ty:'ID', tg:'apt-feiticos', m: 0.95 }, { ty:'ID', tg:'apt-barreiras', m: 0.95 }] },
+            // Desvantagens
+            { id: "mod-prodigio-fisico",           name: "Prodígio Físico",                   effect: "INT +20%",             type: "neg", rules: [{ ty:'TYPE',   tg:'INT',           m: 1.20 }] },
+            { id: "mod-deficit-cognitivo",         name: "Déficit Cognitivo",                 effect: "INT +30%",             type: "neg", rules: [{ ty:'TYPE',   tg:'INT',           m: 1.30 }] },
+            { id: "mod-lerdeza-fisica",            name: "Lerdeza Física",                    effect: "FOR/DES +20%",         type: "neg", rules: [{ ty:'TYPE',   tg:'FOR',           m: 1.20 }, { ty:'TYPE', tg:'DES', m: 1.20 }] },
+        ];
+
         const xpTable = [
             { l: 1, x: 200 }, { l: 2, x: 500 }, { l: 3, x: 900 },
             { l: 4, x: 1400 }, { l: 5, x: 2000 }, { l: 6, x: 2700 },
@@ -487,68 +547,72 @@
 
         const aptitudes = {
             for: [
-                { n: "Espadas Longas", m: 30, u: "dano" },
-                { n: "Machados Longos", m: 35, u: "dano" },
-                { n: "Martelos Longos", m: 40, u: "dano" },
-                { n: "Clavas", m: 25, u: "dano" },
-                { n: "Arcos Longos", m: 40, u: "dano" },
-                { n: "Resistência", m: 20, u: "red. dano físico" },
-                { n: "Mitridatismo", m: 25, u: "red. dano" },
-                { n: "Escalada", m: 0.5, u: "m/s" },
-                { n: "Acrobacia", m: 0.5, u: "m" },
-                { n: "Combate Desarmado", m: 20, u: "dano" }
+                { n: "Espadas Longas", m: 30, u: "dano", id: "apt-espadas-longas", type: "FOR" },
+                { n: "Machados Longos", m: 35, u: "dano", id: "apt-machados-longos", type: "FOR" },
+                { n: "Martelos Longos", m: 40, u: "dano", id: "apt-martelos-longos", type: "FOR" },
+                { n: "Clavas", m: 25, u: "dano", id: "apt-clavas", type: "FOR" },
+                { n: "Arcos Longos", m: 40, u: "dano", id: "apt-arcos-longos", type: "FOR" },
+                { n: "Resistência", m: 20, u: "red. dano físico", id: "apt-resistencia", type: "FOR" },
+                { n: "Mitridatismo", m: 25, u: "red. dano", id: "apt-mitridatismo", type: "FOR" },
+                { n: "Escalada", m: 0.5, u: "m/s", id: "apt-escalada", type: "FOR" },
+                { n: "Acrobacia", m: 0.5, u: "m", id: "apt-acrobacia", type: "FOR" },
+                { n: "Combate Desarmado", m: 20, u: "dano", id: "apt-combate-desarmado", type: "FOR" }
             ],
             des: [
-                { n: "Espadas Curtas", m: 25, u: "dano" },
-                { n: "Adagas", m: 20, u: "dano" },
-                { n: "Lâminas Duplas", m: 25, u: "dano" },
-                { n: "Arcos Curtos", m: 30, u: "dano" },
-                { n: "Balestras", m: 30, u: "dano" },
-                { n: "Machados Curtos", m: 30, u: "dano" },
-                { n: "Martelos Curtos", m: 30, u: "dano" },
-                { n: "Lanças", m: 30, u: "dano" },
-                { n: "Foices", m: 30, u: "dano" },
-                { n: "Bastões", m: 25, u: "dano" },
-                { n: "Correntes/Kusarigama", m: 25, u: "dano" },
-                { n: "Arremesso", m: 20, u: "dano" },
-                { n: "Pistolas/Revólveres", m: 40, u: "dano" },
-                { n: "Espingardas", m: 55, u: "dano" },
-                { n: "Rifles de Precisão", m: 80, u: "dano" },
-                { n: "Rifles de Assalto", m: 60, u: "dano" },
-                { n: "Submetralhadoras", m: 45, u: "dano" },
-                { n: "Metralhadoras Leves", m: 30, u: "dano" },
-                { n: "Furtividade", m: 1, u: "ocultação" },
-                { n: "Natação", m: 1, u: "m/s" },
-                { n: "Corrida", m: 2, u: "m/s" }
+                { n: "Espadas Curtas", m: 25, u: "dano", id: "apt-espadas-curtas", type: "DES" },
+                { n: "Adagas", m: 20, u: "dano", id: "apt-adagas", type: "DES" },
+                { n: "Lâminas Duplas", m: 25, u: "dano", id: "apt-laminas-duplas", type: "DES" },
+                { n: "Arcos Curtos", m: 30, u: "dano", id: "apt-arcos-curtos", type: "DES" },
+                { n: "Balestras", m: 30, u: "dano", id: "apt-balestras", type: "DES" },
+                { n: "Machados Curtos", m: 30, u: "dano", id: "apt-machados-curtos", type: "DES" },
+                { n: "Martelos Curtos", m: 30, u: "dano", id: "apt-martelos-curtos", type: "DES" },
+                { n: "Lanças", m: 30, u: "dano", id: "apt-lancas", type: "DES" },
+                { n: "Foices", m: 30, u: "dano", id: "apt-foices", type: "DES" },
+                { n: "Bastões", m: 25, u: "dano", id: "apt-bastoes", type: "DES" },
+                { n: "Correntes/Kusarigama", m: 25, u: "dano", id: "apt-correntes", type: "DES" },
+                { n: "Arremesso", m: 20, u: "dano", id: "apt-arremesso", type: "DES" },
+                { n: "Pistolas/Revólveres", m: 40, u: "dano", id: "apt-pistolas", type: "DES" },
+                { n: "Espingardas", m: 55, u: "dano", id: "apt-espingardas", type: "DES" },
+                { n: "Rifles de Precisão", m: 80, u: "dano", id: "apt-rifles-precisao", type: "DES" },
+                { n: "Rifles de Assalto", m: 60, u: "dano", id: "apt-rifles-assalto", type: "DES" },
+                { n: "Submetralhadoras", m: 45, u: "dano", id: "apt-submetralhadoras", type: "DES" },
+                { n: "Metralhadoras Leves", m: 30, u: "dano", id: "apt-metralhadoras-leves", type: "DES" },
+                { n: "Furtividade", m: 1, u: "ocultação", id: "apt-furtividade", type: "DES" },
+                { n: "Natação", m: 1, u: "m/s", id: "apt-natacao", type: "DES" },
+                { n: "Corrida", m: 2, u: "m/s", id: "apt-corrida", type: "DES" }
             ],
             int: [
-                { n: "Feitiços", m: 25, u: "pod/res" },
-                { n: "Barreiras", m: 25, u: "res" },
-                { n: "Vontade", m: 30, u: "res" },
-                { n: "Manipulação", m: 1, u: "persuasão e mentira" },
-                { n: "Percepção Mágica", m: 5, u: "m" },
-                { n: "Primeiros Socorros", m: 30, u: "HP" },
-                { n: "Percepção Visual", m: 2, u: "m" },
-                { n: "Pactos", special: "pactos" },
-                { n: "Sobrevivência", special: "recursos" },
-                { n: "Técnica Reversa", special: "rct" }
+                { n: "Feitiços", m: 25, u: "pod/res", id: "apt-feiticos", type: "INT" },
+                { n: "Barreiras", m: 25, u: "res", id: "apt-barreiras", type: "INT" },
+                { n: "Vontade", m: 30, u: "res", id: "apt-vontade", type: "INT" },
+                { n: "Manipulação", m: 1, u: "persuasão e mentira", id: "apt-manipulacao", type: "INT" },
+                { n: "Percepção Mágica", m: 5, u: "m", id: "apt-percepcao-magica", type: "INT" },
+                { n: "Primeiros Socorros", m: 30, u: "HP", id: "apt-primeiros-socorros", type: "INT" },
+                { n: "Percepção Visual", m: 2, u: "m", id: "apt-percepcao-visual", type: "INT" },
+                { n: "Pactos", special: "pactos", id: "apt-pactos", type: "INT" },
+                { n: "Sobrevivência", special: "recursos", id: "apt-sobrevivencia", type: "INT" },
+                { n: "Técnica Reversa", special: "rct", id: "apt-tecnica-reversa", type: "INT" }
             ]
         };
 
         // === INICIALIZAÇÃO ===
+        const uidToApt = {};
+
         window.onload = function() {
+            renderModifiers();
             renderSection('container-for', aptitudes.for);
             renderSection('container-des', aptitudes.des);
             renderSection('container-int', aptitudes.int);
-            loadData(); // Carrega o cache
+            loadData();
         };
 
         function renderSection(containerId, list) {
             const container = document.getElementById(containerId);
-            
+
             list.forEach((item, index) => {
                 const uid = item.n.replace(/[^a-zA-Z0-9]/g, '') + index;
-                
+                uidToApt[uid] = { id: item.id, type: item.type };
+
                 const card = document.createElement('div');
                 card.className = 'apt-card';
                 card.innerHTML = `
@@ -566,16 +630,7 @@
                         </div>
                     </div>
 
-                    <div class="modifiers-row">
-                        <div class="mod-group">
-                            <label>Redução (-%):</label>
-                            <input type="number" class="input-modifier input-red save-target" id="red-${uid}" data-uid="${uid}" min="0" max="99" placeholder="0" oninput="updateCard('${uid}')">
-                        </div>
-                        <div class="mod-group">
-                            <label>Aumento (+%):</label>
-                            <input type="number" class="input-modifier input-inc save-target" id="inc-${uid}" data-uid="${uid}" min="0" placeholder="0" oninput="updateCard('${uid}')">
-                        </div>
-                    </div>
+                    <div class="apt-mods-area" id="mods-${uid}"></div>
 
                     <div class="progress-section">
                         <div class="progress-track">
@@ -596,10 +651,69 @@
                         </div>
                     </div>
                 `;
-                
+
                 card.dataset.meta = JSON.stringify(item);
                 container.appendChild(card);
             });
+        }
+
+        // === MODIFIERS PANEL ===
+        function renderModifiers() {
+            const grid = document.getElementById('modifiers-grid');
+            const pos = MODIFIERS_DB.filter(m => m.type === 'pos');
+            const neg = MODIFIERS_DB.filter(m => m.type === 'neg');
+
+            let html = '<div class="mod-section-label">Vantagens</div>';
+            pos.forEach(mod => {
+                html += `<button class="mod-toggle type-pos" data-mod-id="${mod.id}" onclick="toggleModifier(this)"><span class="t-name">${mod.name}</span><span class="t-effect">${mod.effect}</span></button>`;
+            });
+            html += '<div class="mod-section-label">Desvantagens</div>';
+            neg.forEach(mod => {
+                html += `<button class="mod-toggle type-neg" data-mod-id="${mod.id}" onclick="toggleModifier(this)"><span class="t-name">${mod.name}</span><span class="t-effect">${mod.effect}</span></button>`;
+            });
+            grid.innerHTML = html;
+        }
+
+        function toggleModifier(btn) {
+            btn.classList.toggle('active');
+            recalcAllCards();
+        }
+
+        function getActiveModifiers() {
+            let ar = [];
+            document.querySelectorAll('.mod-toggle.active').forEach(btn => {
+                const mod = MODIFIERS_DB.find(m => m.id === btn.dataset.modId);
+                if (mod) mod.rules.forEach(r => ar.push({ ...r, sn: mod.name }));
+            });
+            return ar;
+        }
+
+        function getAptitudeMultiplier(uid) {
+            const aptData = uidToApt[uid];
+            if (!aptData) return { mult: 1.0, tags: [] };
+
+            const rules = getActiveModifiers();
+            let mult = 1.0;
+            let tags = [];
+
+            rules.forEach(r => {
+                if (r.ty === 'GLOBAL' || (r.ty === 'TYPE' && r.tg === aptData.type) || (r.ty === 'ID' && r.tg === aptData.id)) {
+                    mult *= r.m;
+                    const p = Math.round(Math.abs(1 - r.m) * 100);
+                    tags.push({ txt: r.m < 1 ? `${r.sn}: -${p}%` : `${r.sn}: +${p}%`, cls: r.m < 1 ? "positive" : "negative" });
+                }
+            });
+
+            return { mult, tags };
+        }
+
+        function recalcAllCards() {
+            document.querySelectorAll('.input-current').forEach(inp => {
+                const uid = inp.dataset.uid;
+                if (uid) updateCard(uid, false, true);
+            });
+            updateGlobalTotal();
+            saveData();
         }
 
         // === STORAGE (CACHE) ===
@@ -608,8 +722,13 @@
             document.querySelectorAll('.save-target').forEach(input => {
                 data[input.id] = input.value;
             });
+
+            const activeToggles = [];
+            document.querySelectorAll('.mod-toggle.active').forEach(btn => activeToggles.push(btn.dataset.modId));
+            data['_activeModifiers'] = JSON.stringify(activeToggles);
+
             localStorage.setItem('ga_aptitudes_v3', JSON.stringify(data));
-            
+
             const ind = document.getElementById('saveInd');
             ind.classList.add('visible');
             setTimeout(() => ind.classList.remove('visible'), 2000);
@@ -619,12 +738,22 @@
             const saved = localStorage.getItem('ga_aptitudes_v3');
             if (saved) {
                 const data = JSON.parse(saved);
+
+                if (data['_activeModifiers']) {
+                    const active = JSON.parse(data['_activeModifiers']);
+                    active.forEach(modId => {
+                        const btn = document.querySelector(`.mod-toggle[data-mod-id="${modId}"]`);
+                        if (btn) btn.classList.add('active');
+                    });
+                }
+
                 for (const [id, val] of Object.entries(data)) {
+                    if (id.startsWith('_')) continue;
                     const el = document.getElementById(id);
                     if (el) {
                         el.value = val;
                         const uid = el.dataset.uid;
-                        if(uid) updateCard(uid, false, true);
+                        if (uid) updateCard(uid, false, true);
                     }
                 }
                 updateGlobalTotal();
@@ -674,18 +803,10 @@
         }
 
         function performLevelUp(uid, targetLevel) {
-            // Buscar XP Base na tabela
             const targetEntry = xpTable.find(x => x.l === targetLevel);
-            if(!targetEntry) return;
+            if (!targetEntry) return;
 
-            // Calcular Fatores
-            const redVal = parseInt(document.getElementById(`red-${uid}`).value) || 0;
-            const incVal = parseInt(document.getElementById(`inc-${uid}`).value) || 0;
-            const reductionFactor = Math.max(0.01, 1 - (redVal / 100));
-            const increaseFactor = 1 + (incVal / 100);
-            const finalFactor = reductionFactor * increaseFactor;
-
-            // Calcular XP Necessário
+            const { mult: finalFactor } = getAptitudeMultiplier(uid);
             const reqXP = Math.floor(targetEntry.x * finalFactor);
 
             // Atualizar Input
@@ -704,21 +825,31 @@
         function updateCard(uid, isPreview = false, skipSave = false) {
             const card = document.getElementById(`cur-${uid}`).closest('.apt-card');
             const itemData = JSON.parse(card.dataset.meta);
-            
-            // Valores Inputs
+
             const curVal = parseInt(document.getElementById(`cur-${uid}`).value) || 0;
-            const redVal = parseInt(document.getElementById(`red-${uid}`).value) || 0;
-            const incVal = parseInt(document.getElementById(`inc-${uid}`).value) || 0;
-            
+
             let total = curVal;
             if (isPreview) {
                 total += (parseInt(document.getElementById(`new-${uid}`).value) || 0);
             }
 
-            // Fator de Redução/Aumento
-            const reductionFactor = Math.max(0.01, 1 - (redVal / 100));
-            const increaseFactor = 1 + (incVal / 100);
-            const finalFactor = reductionFactor * increaseFactor;
+            // Fator multiplicador derivado das particularidades/características
+            const { mult: finalFactor, tags } = getAptitudeMultiplier(uid);
+
+            // Atualiza tags de modificadores no card
+            const modsEl = document.getElementById(`mods-${uid}`);
+            if (modsEl) {
+                modsEl.innerHTML = '';
+                card.classList.remove('buffed', 'nerfed');
+                if (finalFactor < 1) card.classList.add('buffed');
+                else if (finalFactor > 1) card.classList.add('nerfed');
+                tags.forEach(t => {
+                    const span = document.createElement('span');
+                    span.className = `mod-tag ${t.cls}`;
+                    span.textContent = t.txt;
+                    modsEl.appendChild(span);
+                });
+            }
 
             // Cálculo do Nível com Modificadores
             let level = 0;
