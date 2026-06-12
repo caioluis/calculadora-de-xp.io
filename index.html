@@ -204,6 +204,21 @@
         }
         .btn-levelup:hover { opacity: 1; transform: scale(1.1); }
 
+        .btn-cap-toggle {
+            background: transparent;
+            color: #555;
+            border: 1px solid #333;
+            border-radius: 3px;
+            font-size: 0.62em;
+            font-weight: bold;
+            padding: 2px 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            line-height: 1;
+        }
+        .btn-cap-toggle:hover { border-color: var(--gold); color: var(--gold); }
+        .btn-cap-toggle.active { background: rgba(212,175,55,0.12); border-color: var(--gold); color: var(--gold); }
+
         /* Progresso */
         .progress-section {
             display: flex;
@@ -402,6 +417,27 @@
         .mod-toggle.active.type-neg .t-name { color: var(--danger); }
         .mod-toggle.active.type-neg .t-effect { color: rgba(255, 82, 82, 0.65); }
 
+        .opt-toggle {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid #2a2a2a;
+            border-radius: 6px;
+            padding: 7px 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Inter', sans-serif;
+            color: var(--text-muted);
+            user-select: none;
+        }
+        .opt-toggle:hover { border-color: #444; color: var(--text-main); }
+        .opt-toggle .o-name { font-weight: 600; font-size: 0.8rem; color: #bbb; transition: color 0.2s; }
+        .opt-toggle .o-desc { font-size: 0.68rem; color: #555; transition: color 0.2s; }
+        .opt-toggle.active { border-color: var(--gold); background: rgba(212, 175, 55, 0.08); }
+        .opt-toggle.active .o-name { color: var(--gold); }
+        .opt-toggle.active .o-desc { color: rgba(212, 175, 55, 0.55); }
+
         @media (max-width: 768px) {
             .columns-wrapper { grid-template-columns: 1fr; }
             .sticky-header { flex-direction: column; gap: 15px; text-align: center; }
@@ -428,7 +464,7 @@
             <div class="header-left">
                 <div class="brand-title">Golden Age</div>
             </div>
-            
+
             <div class="global-stats">
                 <span>Calculadora de XP Total</span>
                 <strong id="globalTotal">0</strong>
@@ -470,6 +506,20 @@
     </div>
 
     <script>
+        // === OPÇÕES POR APTIDÃO ===
+        const unlockedCards = new Set();
+
+        function toggleCardCap(uid) {
+            if (unlockedCards.has(uid)) {
+                unlockedCards.delete(uid);
+            } else {
+                unlockedCards.add(uid);
+            }
+            const btn = document.getElementById(`cap-${uid}`);
+            btn.classList.toggle('active', unlockedCards.has(uid));
+            updateCard(uid);
+        }
+
         // === MODAL LOGIC ===
         const modalOverlay = document.getElementById("customModal");
         const modalTitle = document.getElementById("modalTitle");
@@ -626,6 +676,7 @@
                             <div class="lvl-value-row">
                                 <div class="lvl-value" id="lvl-${uid}">0</div>
                                 <button class="btn-levelup" onclick="confirmLevelUp('${uid}', '${item.n}')" title="Subir 1 Nível">+1</button>
+                                <button class="btn-cap-toggle" id="cap-${uid}" onclick="toggleCardCap('${uid}')" title="Desbloquear além do Nível 50">50+</button>
                             </div>
                         </div>
                     </div>
@@ -792,8 +843,8 @@
             const lvlEl = document.getElementById(`lvl-${uid}`);
             const currentLevel = parseInt(lvlEl.innerText);
 
-            if(currentLevel >= 50) {
-                showAlert("Aviso", "Nível Máximo Alcançado!");
+            if (currentLevel >= 50 && !unlockedCards.has(uid)) {
+                showAlert("Aviso", "Nível Máximo Alcançado! Ative o botão \"50+\" nesta aptidão para desbloquear a progressão além do Nível 50.");
                 return;
             }
 
@@ -803,11 +854,17 @@
         }
 
         function performLevelUp(uid, targetLevel) {
-            const targetEntry = xpTable.find(x => x.l === targetLevel);
-            if (!targetEntry) return;
+            let baseXP;
+            if (targetLevel <= 50) {
+                const targetEntry = xpTable.find(x => x.l === targetLevel);
+                if (!targetEntry) return;
+                baseXP = targetEntry.x;
+            } else {
+                baseXP = 222500 + (targetLevel - 50) * 10000;
+            }
 
             const { mult: finalFactor } = getAptitudeMultiplier(uid);
-            const reqXP = Math.floor(targetEntry.x * finalFactor);
+            const reqXP = Math.floor(baseXP * finalFactor);
 
             // Atualizar Input
             const curInput = document.getElementById(`cur-${uid}`);
@@ -859,11 +916,11 @@
             for(let i = 0; i < xpTable.length; i++) {
                 // Ajusta o requisito da tabela com o fator final
                 const reqXP = Math.floor(xpTable[i].x * finalFactor);
-                
+
                 if(total >= reqXP) {
                     level = xpTable[i].l;
                     prevXP = reqXP;
-                    
+
                     if(i + 1 < xpTable.length) {
                         nextXP = Math.floor(xpTable[i+1].x * finalFactor);
                     } else {
@@ -872,6 +929,19 @@
                 } else {
                     if(level === 0) nextXP = reqXP;
                     break;
+                }
+            }
+
+            // Progressão linear além do nível 50 (apenas quando desbloqueado por aptidão)
+            if (level === 50 && unlockedCards.has(uid)) {
+                const stepXP = Math.floor(10000 * finalFactor);
+                const base50XP = Math.floor(222500 * finalFactor);
+                if (stepXP > 0 && total >= base50XP) {
+                    const extra = total - base50XP;
+                    const additionalLevels = Math.floor(extra / stepXP);
+                    level = 50 + additionalLevels;
+                    prevXP = base50XP + additionalLevels * stepXP;
+                    nextXP = prevXP + stepXP;
                 }
             }
 
